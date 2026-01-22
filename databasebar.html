@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Gestionale Vendite Azienda</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+body {
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 30px;
+    min-height: 100vh;
+    background: linear-gradient(120deg, #0f2027, #203a43, #2c5364);
+    background-size: 300% 300%;
+    animation: gradientMove 10s ease infinite;
+    color: #fff;
+}
+@keyframes gradientMove {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+.card {
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(12px);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 25px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    transition: transform 0.3s ease;
+}
+.card:hover { transform: translateY(-5px); }
+h1,h2,h3 { font-weight: 600; }
+input, select { width:100%; padding:10px; border-radius:10px; border:none; margin:8px 0; font-size:14px; }
+button {
+    width:100%; padding:12px; border-radius:12px; border:none;
+    background:linear-gradient(135deg,#00c6ff,#0072ff); color:white; font-size:15px; font-weight:600;
+    cursor:pointer; transition: all 0.3s ease;
+}
+button:hover { transform: scale(1.03); box-shadow:0 5px 15px rgba(0,114,255,0.6);}
+button.danger{background:linear-gradient(135deg,#ff416c,#ff4b2b);}
+.hidden { display:none; }
+.success { text-align:center; margin-top:15px; font-size:18px; color:#2ecc71; animation:pop 0.5s ease; }
+@keyframes pop {0% {transform:scale(0.8);opacity:0;}100% {transform:scale(1);opacity:1;}}
+.banknote{display:inline-flex;justify-content:center;align-items:center;width:90px;height:50px;margin:6px;border-radius:12px;background:linear-gradient(135deg,#43cea2,#185a9d);color:white;font-weight:bold;cursor:pointer;box-shadow:0 5px 15px rgba(0,0,0,0.4);transition:transform 0.2s ease;}
+.banknote:hover{transform:scale(1.1);}
+.banknote.small{background:linear-gradient(135deg,#56ab2f,#a8e063);}
+.card-animation{text-align:center;font-size:20px;padding:20px;animation:pulse 1.2s infinite;}
+@keyframes pulse{0%{opacity:0.4;}50%{opacity:1;}100%{opacity:0.4;}}
+table{width:100%;border-collapse:collapse;margin-top:10px;}
+th,td{padding:10px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.2);}
+th{font-weight:600;opacity:0.8;}
+</style>
+</head>
+<body>
+
+<h1>📊 Gestionale Aziendale</h1>
+
+<div class="card" id="loginBox">
+    <input id="username" placeholder="Username">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="login()">Accedi</button>
+</div>
+
+<div class="card hidden" id="fatturatoBox">
+    <h2>Fatturato: € <span id="fatturato">0</span></h2>
+</div>
+
+<div class="card hidden" id="venditeBox">
+    <h2>Nuova vendita</h2>
+    <input id="oggetto" placeholder="Prodotto">
+    <input id="prezzo" type="number" placeholder="Prezzo €">
+    <select id="pagamento" onchange="cambiaPagamento()">
+        <option value="">Pagamento</option>
+        <option value="contanti">Contanti</option>
+        <option value="carta">Carta</option>
+    </select>
+    <div id="contantiBox" class="hidden">
+        <h3>Seleziona banconote</h3>
+        <div id="banconote"></div>
+        <p>Totale pagato: € <span id="pagato">0</span></p>
+        <p>Resto: € <span id="resto">0</span></p>
+    </div>
+    <div id="cartaBox" class="hidden card-animation">💳 Elaborazione pagamento...</div>
+    <button onclick="aggiungiVendita()">Conferma</button>
+    <div id="successo" class="success hidden">✅ Operazione riuscita</div>
+</div>
+
+<div class="card hidden" id="direttoreBox">
+    <h2>Storico Vendite</h2>
+    <table>
+        <thead>
+            <tr><th>Venditore</th><th>Prodotto</th><th>Prezzo</th><th>Pagamento</th><th>Azioni</th></tr>
+        </thead>
+        <tbody id="listaVendite"></tbody>
+    </table>
+
+    <h2>Gestione Dipendenti</h2>
+    <table>
+        <thead><tr><th>Nome</th><th>Stato</th><th>Azione</th></tr></thead>
+        <tbody id="listaUtenti"></tbody>
+    </table>
+
+    <h2>Assumi Dipendente</h2>
+    <input id="nuovoNome" placeholder="Username dipendente">
+    <input id="nuovaPass" placeholder="Password">
+    <button onclick="assumiDipendente()">Assumi</button>
+
+    <h2>Dipendenti in Prova / Promozioni</h2>
+    <table>
+        <thead><tr><th>Nome</th><th>Ruolo</th><th>Azione</th></tr></thead>
+        <tbody id="dipendentiProva"></tbody>
+    </table>
+</div>
+
+<script>
+let utenti = JSON.parse(localStorage.getItem("utenti")) || [
+    {nome:"mario", password:"1234", ruolo:"utente", attivo:true},
+    {nome:"direttore", password:"admin", ruolo:"direttore", attivo:true},
+    {nome:"Kef29l", password:"X7mQ9Lr2!", ruolo:"dipendente", attivo:true} // NUOVO UTENTE
+];
+localStorage.setItem("utenti", JSON.stringify(utenti));
+
+let vendite = JSON.parse(localStorage.getItem("vendite")) || [];
+let utenteLoggato = null;
+let totalePagato = 0;
+const valori = [500,200,100,50,20,10,5,1];
+valori.forEach(v=>{banconote.innerHTML+=`<div class="banknote ${v<=5?'small':''}" onclick="aggiungiContante(${v})">€${v}</div>`;});
+
+function login(){
+    const u=username.value,p=password.value;
+    const trovato=utenti.find(x=>x.nome===u && x.password===p && x.attivo);
+    if(!trovato) return alert("Accesso negato");
+    utenteLoggato=trovato;
+    loginBox.classList.add("hidden");
+    fatturatoBox.classList.remove("hidden");
+    venditeBox.classList.remove("hidden");
+    aggiornaFatturato();
+    if(trovato.ruolo==="direttore"){ direttoreBox.classList.remove("hidden"); aggiornaDirettore(); aggiornaPromozioni(); }
+}
+
+function cambiaPagamento(){ contantiBox.classList.add("hidden"); cartaBox.classList.add("hidden"); totalePagato=0; pagato.innerText=resto.innerText=0; if(pagamento.value==="contanti") contantiBox.classList.remove("hidden"); if(pagamento.value==="carta") cartaBox.classList.remove("hidden"); }
+function aggiungiContante(val){ const prezzoVal=Number(prezzo.value); if(totalePagato+val>prezzoVal){alert("Importo superiore al prezzo"); return;} totalePagato+=val; pagato.innerText=totalePagato; resto.innerText=totalePagato-prezzoVal; }
+function aggiungiVendita(){ if(!oggetto.value||!prezzo.value||!pagamento.value){alert("Compila tutti i campi"); return;} if(pagamento.value==="contanti" && totalePagato<prezzo.value){alert("Pagamento insufficiente");return;} if(pagamento.value==="carta"){ setTimeout(finalizza,2000);} else {finalizza();} }
+function finalizza(){ vendite.push({venditore:utenteLoggato.nome, oggetto:oggetto.value, prezzo:Number(prezzo.value), pagamento:pagamento.value}); localStorage.setItem("vendite",JSON.stringify(vendite)); aggiornaFatturato(); oggetto.value=prezzo.value=pagamento.value=""; contantiBox.classList.add("hidden"); cartaBox.classList.add("hidden"); successo.classList.remove("hidden"); setTimeout(()=>successo.classList.add("hidden"),2000); if(utenteLoggato.ruolo==="direttore"){ aggiornaDirettore(); aggiornaPromozioni(); } }
+function aggiornaFatturato(){ fatturato.innerText=vendite.reduce((t,v)=>t+v.prezzo,0); }
+
+// DIRETTORE
+function aggiornaDirettore(){
+    listaVendite.innerHTML=""; 
+    vendite.forEach((v,i)=>{ listaVendite.innerHTML+=`<tr><td>${v.venditore}</td><td>${v.oggetto}</td><td>${v.prezzo}</td><td>${v.pagamento}</td><td><button class="danger" onclick="eliminaVendita(${i})">X</button></td></tr>`; });
+    
+    listaUtenti.innerHTML="";
+    utenti.forEach((u,i)=>{
+        if(u.ruolo==="direttore") return;
+        if(!u.attivo) return; // NON mostra licenziati
+        listaUtenti.innerHTML+=`<tr><td>${u.nome}</td><td>Attivo</td><td><button class="danger" onclick="toggleUtente(${i})">Licenzia</button></td></tr>`;
+    });
+}
+
+// LICENZIA / RIATTIVA
+function toggleUtente(i){ utenti[i].attivo=!utenti[i].attivo; localStorage.setItem("utenti",JSON.stringify(utenti)); aggiornaDirettore(); aggiornaPromozioni(); }
+
+// ASSUMERE / RIATTIVARE DIPENDENTE
+function assumiDipendente(){
+    const nome=document.getElementById("nuovoNome").value.trim();
+    const pass=document.getElementById("nuovaPass").value.trim();
+    if(!nome||!pass){alert("Compila tutti i campi"); return;}
+    
+    let esistente = utenti.find(u => u.nome === nome);
+    if(esistente){
+        if(!esistente.attivo){
+            // Riattiva l'utente licenziato
+            esistente.attivo = true;
+            esistente.password = pass; // aggiorna password
+            esistente.ruolo = "utente"; // reset ruolo
+            localStorage.setItem("utenti", JSON.stringify(utenti));
+            aggiornaDirettore();
+            aggiornaPromozioni();
+            alert("Utente riassunto correttamente!");
+        } else {
+            alert("Utente già esistente");
+        }
+        return;
+    }
+
+    // Se non esiste, lo crea
+    utenti.push({nome:nome,password:pass,ruolo:"utente",attivo:true});
+    localStorage.setItem("utenti",JSON.stringify(utenti));
+    aggiornaDirettore();
+    aggiornaPromozioni();
+    document.getElementById("nuovoNome").value="";
+    document.getElementById("nuovaPass").value="";
+    alert("Dipendente assunto correttamente!");
+}
+
+// DIPENDENTI IN PROVA / PROMOZIONI
+function aggiornaPromozioni(){
+    dipendentiProva.innerHTML="";
+    utenti.forEach((u,i)=>{
+        if(u.ruolo==="direttore") return;
+        if(!u.attivo) return; // NON mostra licenziati
+        let ruoloDisplay = u.ruolo.charAt(0).toUpperCase()+u.ruolo.slice(1);
+        dipendentiProva.innerHTML+=`<tr>
+            <td>${u.nome}</td>
+            <td>${ruoloDisplay}</td>
+            <td>
+                <button onclick="promuoviDipendente(${i})">Promuovi</button>
+                <button onclick="degradaDipendente(${i})">Degrada</button>
+            </td>
+        </tr>`;
+    });
+}
+
+function promuoviDipendente(i){ const ruoli=["utente","responsabile","manager","vice direttore"]; let indice=ruoli.indexOf(utenti[i].ruolo); if(indice<ruoli.length-1){ utenti[i].ruolo=ruoli[indice+1]; } localStorage.setItem("utenti",JSON.stringify(utenti)); aggiornaPromozioni(); aggiornaDirettore(); }
+function degradaDipendente(i){ const ruoli=["utente","responsabile","manager","vice direttore"]; let indice=ruoli.indexOf(utenti[i].ruolo); if(indice>0){ utenti[i].ruolo=ruoli[indice-1]; } localStorage.setItem("utenti",JSON.stringify(utenti)); aggiornaPromozioni(); aggiornaDirettore(); }
+
+// VENDITE
+function eliminaVendita(i){ vendite.splice(i,1); localStorage.setItem("vendite",JSON.stringify(vendite)); aggiornaDirettore(); aggiornaFatturato(); }
+</script>
+
+</body>
+</html>
